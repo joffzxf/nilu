@@ -1,7 +1,7 @@
 import {
   SLOPE_CAP,
   heightAt,
-} from './life.js?v=2.0.1';
+} from './life.js?v=2.0.2';
 
 const AMBER = '227, 181, 102';
 const PAPER = '238, 232, 220';

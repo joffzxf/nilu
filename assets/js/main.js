@@ -11,11 +11,11 @@ import {
   makeSequence,
   projectFastForward,
   settle,
-} from './life.js?v=2.0.1';
-import { LifeRenderer } from './render.js?v=2.0.1';
-import { Sound } from './audio.js?v=2.0.1';
-import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.0.1';
-import { CONFIG } from './config.js?v=2.0.1';
+} from './life.js?v=2.0.2';
+import { LifeRenderer } from './render.js?v=2.0.2';
+import { Sound } from './audio.js?v=2.0.2';
+import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.0.2';
+import { CONFIG } from './config.js?v=2.0.2';
 
 const $ = (id) => document.getElementById(id);
 const isGithubPages = window.location.hostname.endsWith('.github.io');
@@ -185,6 +185,7 @@ function triggerDeath(reason = 'manual') {
   closePanels();
   hideAccountMenu();
   el.accountBtn.hidden = true;
+  if (!state.booted) el.veil.style.transition = 'none';
   el.area.classList.add('is-fading');
   document.body.classList.add('is-dead');
   showActions(false);
@@ -472,7 +473,7 @@ async function loginWithDev() {
     state.user = data.user;
     updateAccountButton();
     await loadServerAccount();
-    if (state.mode === 'online') startPolling();
+    if (!state.died && state.mode === 'online') startPolling();
   } catch {
     el.accountBtn.classList.add('is-shaking');
     window.setTimeout(() => el.accountBtn.classList.remove('is-shaking'), 400);
@@ -900,7 +901,7 @@ async function boot() {
     updateAccountButton();
     if (state.user) {
       await loadServerAccount();
-      if (state.mode === 'online') startPolling();
+      if (!state.died && state.mode === 'online') startPolling();
     } else {
       loadLocalLife();
     }

@@ -1,3 +1,7 @@
+/**
+ * 本地演示数据：仅在 DEV_AUTH=1 的本地 server 上使用。
+ * 它会创建 5 个测试账号并提交脚本生成的成绩；不要在生产环境运行。
+ */
 import { advance, createRun, getResult } from '../assets/js/engine.js';
 
 const BASE = 'http://127.0.0.1:8787';

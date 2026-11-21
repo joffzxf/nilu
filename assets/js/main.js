@@ -866,7 +866,7 @@ async function retryPendingIfAny() {
     localStorage.removeItem('nilu.pending');
     toast(`上一程已补交，第 ${data.rank} 名`);
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 404 || error.status === 409 || error.status === 410)) {
+    if (error instanceof ApiError && [403, 404, 409, 410].includes(error.status)) {
       localStorage.removeItem('nilu.pending');
     }
   }

@@ -4,28 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { createSqliteDriver } from '../server/driver-sqlite.js';
 import { createSqlStore } from '../server/store-sql.js';
 import { createApp } from '../server/app.js';
-import { advance, createRun, getResult } from '../assets/js/engine.js';
+import { BASE_GAIN } from '../assets/js/life.js';
 
 const schema = await readFile(new URL('../server/schema.sql', import.meta.url), 'utf8');
-
-function perfectInputs(seed, durationTicks, reaction = 6, typing = 3) {
-  const run = createRun({ seed, durationTicks });
-  const inputs = [];
-  let due = null;
-  while (run.status === 'running') {
-    if (!run.prompt) due = null;
-    else if (due === null) due = run.tick + reaction;
-    let batch = [];
-    if (run.prompt && due !== null && run.tick >= due) {
-      const key = run.prompt.seq[run.prompt.index];
-      batch = [key];
-      inputs.push({ t: run.tick, k: key });
-      due = run.prompt.index + 1 >= run.prompt.seq.length ? null : run.tick + typing;
-    }
-    advance(run, batch);
-  }
-  return { inputs, result: getResult(run) };
-}
 
 async function setup(overrides = {}) {
   const driver = createSqliteDriver(':memory:');
@@ -39,10 +20,7 @@ async function setup(overrides = {}) {
     githubCallbackUrl: '',
     apiOrigin: 'http://api.local',
     devAuth: true,
-    durationTicks: 600,
-    minRunRatio: 0,
-    sessionTtlMs: 1000 * 60 * 60,
-    challengeTtlMs: 1000 * 60 * 10,
+    sessionTtlMs: 30 * 24 * 60 * 60 * 1000,
     now: () => clock,
     ...overrides,
   };
@@ -67,180 +45,198 @@ async function setup(overrides = {}) {
     assert.equal(response.status, 200);
     return response.json;
   };
-  const challenge = async (token) => {
-    const response = await call('/api/challenges', { method: 'POST', token, body: {} });
+  const createAccount = async (token) => {
+    const response = await call('/api/account', { method: 'POST', token, body: {} });
     assert.equal(response.status, 200);
     return response.json;
   };
-  const advanceClock = (ms) => { clock += ms; };
-  return { driver, store, app, config, call, login, challenge, advanceClock };
+  const advance = (seconds) => { clock += seconds * 1000; };
+  return { store, app, config, call, login, createAccount, advance };
 }
 
-test('健康检查与 CORS 预检', async () => {
+test('健康检查、CORS 预检', async () => {
   const { call } = await setup();
   const health = await call('/api/health');
   assert.equal(health.status, 200);
   assert.equal(health.json.ok, true);
+  assert.equal(health.json.lifetimeDays, 30000);
+  assert.ok(health.json.features.includes('fastForward'));
   assert.equal(health.headers.get('access-control-allow-origin'), 'http://localhost:3000');
 
   const preflight = await call('/api/health', { method: 'OPTIONS' });
   assert.equal(preflight.status, 204);
-  assert.equal(preflight.headers.get('access-control-allow-origin'), 'http://localhost:3000');
   assert.match(preflight.headers.get('access-control-allow-headers'), /Authorization/);
 });
 
-test('未登录不能领凭证，无效令牌被拒绝', async () => {
+test('未登录不能创建或读取这一生', async () => {
   const { call } = await setup();
-  const anonymous = await call('/api/challenges', { method: 'POST', body: {} });
-  assert.equal(anonymous.status, 401);
-  const badToken = await call('/api/challenges', { method: 'POST', token: 'a'.repeat(64), body: {} });
-  assert.equal(badToken.status, 401);
+  const created = await call('/api/account', { method: 'POST', body: {} });
+  assert.equal(created.status, 401);
+  const read = await call('/api/account');
+  assert.equal(read.status, 401);
 });
 
-test('本地测试登录 -> 领凭证 -> 回放复核 -> 上榜', async () => {
-  const { call, login, challenge } = await setup();
-  const session = await login('测试甲');
-  assert.equal(session.user.login, 'dev-测试甲');
+test('创建一生；同一时间只有一个还活着的一生', async () => {
+  const { call, login, createAccount } = await setup();
+  const session = await login('甲');
+  const first = await createAccount(session.token);
+  assert.equal(first.account.status, 'alive');
+  assert.equal(first.account.age, 0);
+  assert.equal(first.account.area, 0);
+  const second = await createAccount(session.token);
+  assert.equal(second.account.id, first.account.id);
 
-  const ch = await challenge(session.token);
-  assert.equal(ch.durationTicks, 600);
-  assert.equal(ch.engineVersion, '1.0.0');
-
-  const { inputs, result } = perfectInputs(ch.seed, ch.durationTicks);
-  assert.ok(result.successes > 0);
-  const submit = await call('/api/runs', {
-    method: 'POST',
-    token: session.token,
-    body: { challengeId: ch.id, inputs },
-  });
-  assert.equal(submit.status, 200);
-  assert.equal(submit.json.run.score, result.score);
-  assert.equal(submit.json.duplicate, false);
-  assert.equal(submit.json.rank, 1);
-  assert.equal(submit.json.run.successes, result.successes);
-  assert.ok(Array.isArray(submit.json.run.curve));
-
-  const replayed = await call('/api/runs', {
-    method: 'POST',
-    token: session.token,
-    body: { challengeId: ch.id, inputs },
-  });
-  assert.equal(replayed.status, 200);
-  assert.equal(replayed.json.duplicate, true);
-  assert.equal(replayed.json.run.id, submit.json.run.id);
-  assert.equal(replayed.json.run.score, submit.json.run.score);
-
-  const board = await call('/api/leaderboard?scope=all');
-  assert.equal(board.status, 200);
-  assert.equal(board.json.total, 1);
-  assert.equal(board.json.entries.length, 1);
-  assert.equal(board.json.entries[0].login, 'dev-测试甲');
-  assert.equal(board.json.entries[0].score, result.score);
+  const read = await call('/api/account', { token: session.token });
+  assert.equal(read.status, 200);
+  assert.equal(read.json.account.id, first.account.id);
+  assert.deepEqual(read.json.events.map((event) => event.type), ['birth']);
 });
 
-test('所有账户都在榜上，包括还没走的人；排序按最好成绩', async () => {
-  const { call, login, challenge } = await setup();
+test('离线的时间会补上；一次努力抬高斜率，面积继续增长', async () => {
+  const { call, login, createAccount, advance } = await setup();
+  const session = await login('乙');
+  const created = await createAccount(session.token);
+  const start = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  assert.equal(start.status, 200);
+  assert.ok(Array.isArray(start.json.sequence));
+  assert.equal(start.json.sequence.length, 2);
+
+  const complete = await call(`/api/account/efforts/${start.json.effortId}/complete`, {
+    method: 'POST',
+    token: session.token,
+    body: { keys: start.json.sequence },
+  });
+  assert.equal(complete.status, 200);
+  assert.equal(complete.json.ok, true);
+  assert.ok(complete.json.account.slope > 0);
+  assert.ok(Math.abs(complete.json.account.slope - BASE_GAIN) < 1e-12);
+
+  advance(3600);
+  const read = await call('/api/account', { token: session.token });
+  assert.equal(read.status, 200);
+  assert.equal(read.json.account.age, 3600);
+  const expected = 0.5 * BASE_GAIN * 3600 * 3600;
+  assert.ok(Math.abs(read.json.account.area - expected) < 0.01);
+  assert.ok(read.json.events.some((event) => event.type === 'effort'));
+  assert.equal(created.account.id, read.json.account.id);
+});
+
+test('努力没有时间限制；输错了重新点，斜率不变', async () => {
+  const { call, login, createAccount, advance } = await setup();
+  const session = await login('丙');
+  await createAccount(session.token);
+
+  const start = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  advance(86400);
+  const complete = await call(`/api/account/efforts/${start.json.effortId}/complete`, {
+    method: 'POST',
+    token: session.token,
+    body: { keys: start.json.sequence },
+  });
+  assert.equal(complete.status, 200);
+  assert.equal(complete.json.ok, true);
+  assert.ok(complete.json.account.age >= 86400);
+
+  const wrongStart = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  const wrongKeys = [(wrongStart.json.sequence[0] + 1) % 4];
+  const wrong = await call(`/api/account/efforts/${wrongStart.json.effortId}/complete`, {
+    method: 'POST',
+    token: session.token,
+    body: { keys: wrongKeys },
+  });
+  assert.equal(wrong.status, 200);
+  assert.equal(wrong.json.ok, false);
+  assert.equal(wrong.json.reason, 'wrong');
+  assert.ok(Math.abs(wrong.json.account.slope - complete.json.account.slope) < 1e-12);
+
+  const again = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  assert.equal(again.status, 200);
+});
+
+test('快进只能向前；到三万天这一生注销，不能再用', async () => {
+  const { call, login, createAccount } = await setup();
+  const session = await login('丁');
+  await createAccount(session.token);
+  const start = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  await call(`/api/account/efforts/${start.json.effortId}/complete`, {
+    method: 'POST', token: session.token, body: { keys: start.json.sequence },
+  });
+
+  const forward = await call('/api/account/fast-forward', {
+    method: 'POST', token: session.token, body: { targetDay: 10 },
+  });
+  assert.equal(forward.status, 200);
+  assert.equal(forward.json.account.day, 10);
+  assert.ok(forward.json.account.area > 0);
+
+  const backwards = await call('/api/account/fast-forward', {
+    method: 'POST', token: session.token, body: { targetDay: 5 },
+  });
+  assert.equal(backwards.status, 400);
+  assert.equal(backwards.json.error, 'backwards');
+
+  const ending = await call('/api/account/fast-forward', {
+    method: 'POST', token: session.token, body: { targetDay: 30000 },
+  });
+  assert.equal(ending.status, 200);
+  assert.equal(ending.json.account.status, 'ended');
+  assert.equal(ending.json.account.endReason, 'lifespan');
+
+  const after = await call('/api/account', { token: session.token });
+  assert.equal(after.status, 200);
+  assert.equal(after.json.account, null);
+  assert.equal(after.json.lastEnded.endReason, 'lifespan');
+
+  const effortAfter = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
+  assert.equal(effortAfter.status, 409);
+
+  const reborn = await call('/api/account', { method: 'POST', token: session.token, body: {} });
+  assert.equal(reborn.status, 200);
+  assert.notEqual(reborn.json.account.id, ending.json.account.id);
+
+  const accounts = await call('/api/accounts', { token: session.token });
+  assert.equal(accounts.json.accounts.length, 2);
+  assert.equal(accounts.json.accounts.filter((account) => account.status === 'alive').length, 1);
+});
+
+test('结束需要确认；结束后可以开始下一生', async () => {
+  const { call, login, createAccount } = await setup();
+  const session = await login('戊');
+  const first = await createAccount(session.token);
+
+  const noConfirm = await call('/api/account/end', { method: 'POST', token: session.token, body: {} });
+  assert.equal(noConfirm.status, 400);
+
+  const ended = await call('/api/account/end', {
+    method: 'POST', token: session.token, body: { confirm: true },
+  });
+  assert.equal(ended.status, 200);
+  assert.equal(ended.json.account.status, 'ended');
+  assert.equal(ended.json.account.endReason, 'manual');
+
+  const after = await call('/api/account', { token: session.token });
+  assert.equal(after.json.account, null);
+  const again = await call('/api/account/end', {
+    method: 'POST', token: session.token, body: { confirm: true },
+  });
+  assert.equal(again.status, 409);
+
+  const next = await call('/api/account', { method: 'POST', token: session.token, body: {} });
+  assert.equal(next.status, 200);
+  assert.equal(next.json.account.status, 'alive');
+  assert.notEqual(next.json.account.id, first.account.id);
+});
+
+test('别人的努力不能提交', async () => {
+  const { call, login, createAccount } = await setup();
   const a = await login('甲');
   const b = await login('乙');
-  await login('丙');
-
-  const chA = await challenge(a.token);
-  const fast = perfectInputs(chA.seed, chA.durationTicks, 4, 2);
-  await call('/api/runs', { method: 'POST', token: a.token, body: { challengeId: chA.id, inputs: fast.inputs } });
-
-  const chB = await challenge(b.token);
-  const slow = perfectInputs(chB.seed, chB.durationTicks, 24, 14);
-  const slowResult = await call('/api/runs', {
-    method: 'POST', token: b.token, body: { challengeId: chB.id, inputs: slow.inputs },
+  await createAccount(a.token);
+  const start = await call('/api/account/efforts', { method: 'POST', token: a.token, body: {} });
+  const stolen = await call(`/api/account/efforts/${start.json.effortId}/complete`, {
+    method: 'POST', token: b.token, body: { keys: start.json.sequence },
   });
-  assert.equal(slowResult.status, 200);
-
-  const board = await call('/api/leaderboard?scope=all');
-  assert.equal(board.status, 200);
-  assert.equal(board.json.total, 3);
-  assert.equal(board.json.entries.length, 3);
-  assert.equal(board.json.entries[0].login, 'dev-甲');
-  assert.ok(board.json.entries[0].score > board.json.entries[1].score);
-  assert.equal(board.json.entries[2].login, 'dev-丙');
-  assert.equal(board.json.entries[2].score, 0);
-  assert.equal(board.json.entries[2].hasRun, false);
-});
-
-test('复核按服务器回放为准，非法输入被拒绝', async () => {
-  const { call, login, challenge } = await setup();
-  const session = await login('回放');
-  const ch = await challenge(session.token);
-
-  const duplicatedTick = await call('/api/runs', {
-    method: 'POST',
-    token: session.token,
-    body: { challengeId: ch.id, inputs: [{ t: 1, k: 0 }, { t: 1, k: 1 }] },
-  });
-  assert.equal(duplicatedTick.status, 400);
-
-  const outOfRange = await call('/api/runs', {
-    method: 'POST',
-    token: session.token,
-    body: { challengeId: ch.id, inputs: [{ t: 9999, k: 0 }] },
-  });
-  assert.equal(outOfRange.status, 400);
-
-  const wrongKey = await call('/api/runs', {
-    method: 'POST',
-    token: session.token,
-    body: { challengeId: ch.id, inputs: [{ t: 50, k: 3 }, { t: 60, k: 3 }] },
-  });
-  assert.equal(wrongKey.status, 200);
-  assert.ok(wrongKey.json.run.score >= 0);
-});
-
-test('凭证过期后不能提交', async () => {
-  const { call, login, challenge, advanceClock, config } = await setup();
-  const session = await login('过期');
-  const ch = await challenge(session.token);
-  advanceClock(config.challengeTtlMs + 1);
-  const submit = await call('/api/runs', {
-    method: 'POST', token: session.token, body: { challengeId: ch.id, inputs: [] },
-  });
-  assert.equal(submit.status, 410);
-  assert.equal(submit.json.error, 'challenge_expired');
-});
-
-test('别人的凭证不能提交', async () => {
-  const { call, login, challenge } = await setup();
-  const a = await login('甲');
-  const b = await login('乙');
-  const ch = await challenge(a.token);
-  const submit = await call('/api/runs', {
-    method: 'POST', token: b.token, body: { challengeId: ch.id, inputs: [] },
-  });
-  assert.equal(submit.status, 403);
-});
-
-test('本周榜、我的记录与轨迹详情', async () => {
-  const { call, login, challenge } = await setup();
-  const session = await login('周榜');
-  const ch = await challenge(session.token);
-  const { inputs, result } = perfectInputs(ch.seed, ch.durationTicks);
-  const submit = await call('/api/runs', {
-    method: 'POST', token: session.token, body: { challengeId: ch.id, inputs },
-  });
-  assert.equal(submit.status, 200);
-
-  const week = await call('/api/leaderboard?scope=week', { token: session.token });
-  assert.equal(week.status, 200);
-  assert.equal(week.json.entries[0].score, result.score);
-  assert.equal(week.json.me.rank, 1);
-
-  const mine = await call('/api/me/runs', { token: session.token });
-  assert.equal(mine.status, 200);
-  assert.equal(mine.json.entries.length, 1);
-  assert.equal(mine.json.entries[0].score, result.score);
-
-  const detail = await call(`/api/runs/${submit.json.run.id}`);
-  assert.equal(detail.status, 200);
-  assert.equal(detail.json.run.login, 'dev-周榜');
-  assert.equal(detail.json.run.score, result.score);
+  assert.equal(stolen.status, 404);
 });
 
 test('未配置 GitHub OAuth 时开始登录返回 503', async () => {
@@ -250,7 +246,7 @@ test('未配置 GitHub OAuth 时开始登录返回 503', async () => {
   assert.equal(response.json.error, 'oauth_not_configured');
 });
 
-test('开放重定向被拦截：return 只能回到允许的来源', async () => {
+test('OAuth 的 return URL 不能跳出白名单', async () => {
   const { call, store, config } = await setup({
     githubClientId: 'client-id',
     githubClientSecret: 'client-secret',
@@ -262,4 +258,15 @@ test('开放重定向被拦截：return 只能回到允许的来源', async () =
   const state = new URL(location).searchParams.get('state');
   const saved = await store.consumeLoginState(state, config.now());
   assert.equal(saved.returnUrl, `${config.appOrigins[0]}/`);
+});
+
+test('我的账户列表返回这一生与过去的一生', async () => {
+  const { call, login, createAccount } = await setup();
+  const session = await login('己');
+  await createAccount(session.token);
+  const me = await call('/api/me', { token: session.token });
+  assert.equal(me.status, 200);
+  assert.equal(me.json.user.login, 'dev-己');
+  assert.equal(me.json.alive.status, 'alive');
+  assert.equal(me.json.accounts.length, 1);
 });

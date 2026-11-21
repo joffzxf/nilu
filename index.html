@@ -3,212 +3,80 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>逆旅 · 光点不会回头</title>
-  <meta name="description" content="逆旅：一个只能向前的光点。按顺序敲下箭头，让它的斜率再抬高一点；六十秒后，轨迹下的面积就是这一程。">
+  <title>逆旅</title>
+  <meta name="description" content="一个光点的一生。现实一秒，游戏一秒。到三万天，自动结束。">
   <meta name="theme-color" content="#07080a">
   <meta name="color-scheme" content="dark">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com https://*.githubusercontent.com; connect-src 'self' https:; font-src 'self'; base-uri 'none'; form-action 'self'">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="逆旅 · 光点不会回头">
-  <meta property="og:description" content="一个只能向前的光点。每次准确完成指令，斜率就抬高一点。六十秒后，轨迹下的面积就是这一程。">
+  <meta property="og:title" content="逆旅 · 一个光点的一生">
+  <meta property="og:description" content="它不会因为你关掉网页而停下。快进、努力，或者结束。到三万天，自动结束。">
   <meta property="og:image" content="https://joffzxf.github.io/nilu/assets/img/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:url" content="https://joffzxf.github.io/nilu/">
-  <meta property="og:site_name" content="逆旅 NILÜ">
+  <meta property="og:site_name" content="逆旅">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:image" content="https://joffzxf.github.io/nilu/assets/img/og.png">
   <link rel="icon" href="./assets/img/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="./assets/css/style.css">
+  <link rel="stylesheet" href="./assets/css/style.css?v=2.0.0">
 </head>
-<body>
+<body class="is-booting">
   <canvas id="stage" aria-hidden="true"></canvas>
   <div class="grain" aria-hidden="true"></div>
 
-  <header class="topbar">
-    <a class="brand" href="./" aria-label="逆旅 · 回到起点">
-      <span class="seal" aria-hidden="true">逆</span>
-      <span class="brand-text">逆旅<small>NILÜ</small></span>
-    </a>
-    <nav class="nav" aria-label="控制">
-      <button id="soundBtn" class="icon-btn" type="button" aria-label="关闭声音" title="声音">
-        <svg class="icon icon-sound-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" fill="currentColor"/><path d="M15.2 8.6a4.8 4.8 0 0 1 0 6.8M17.8 6a8.3 8.3 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-        <svg class="icon icon-sound-off" viewBox="0 0 24 24" aria-hidden="true" hidden><path d="M4 9.5v5h3.4L12 18V6L7.4 9.5H4Z" fill="currentColor"/><path d="m16 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-      </button>
-      <button id="pauseBtn" class="icon-btn" type="button" aria-label="暂停" title="暂停（Esc）" hidden>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13M16 5.5v13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </button>
-      <button id="boardBtn" class="ghost-btn" type="button">排行榜</button>
-      <div id="accountArea" class="account"></div>
-    </nav>
-  </header>
+  <div id="area" class="area" aria-label="累积面积"><span id="areaValue">0</span></div>
 
-  <div id="timeBar" class="time-bar" aria-hidden="true"><span></span></div>
+  <button id="accountBtn" class="account-orb" type="button" aria-label="账号" hidden>
+    <svg class="orb-github" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    <img id="accountAvatar" alt="" referrerpolicy="no-referrer" hidden>
+  </button>
 
-  <main>
-    <section id="landing" class="landing" aria-labelledby="landingTitle">
-      <div class="landing-inner">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>天地者，万物之逆旅也</p>
-        <h1 id="landingTitle">逆旅</h1>
-        <p class="quote">人生如逆旅，我亦是行人。</p>
-        <p class="lede">一个光点，只能向前。<br>准确地敲下每一组箭头，它会微微抬头。<br>六十秒后，轨迹之下的面积，就是你的这一程。</p>
-        <div class="cta-row">
-          <button id="startBtn" class="primary-btn" type="button"><span>开始这一程</span><i aria-hidden="true">→</i></button>
-          <button id="boardBtnLanding" class="text-btn" type="button">先看看别人走过的</button>
-        </div>
-        <p class="hint" id="landingHint">← ↑ → ↓　·　无需登录也能走，登录后进入总榜</p>
-        <p class="best-line">本机最佳 <strong id="bestLocal">—</strong><span id="bestLocalMeta"></span></p>
-      </div>
-      <aside class="inscription" aria-hidden="true">光阴者，百代之过客也</aside>
-      <footer class="landing-foot">
-        <span id="versionTag">v1.0 · 页面 Demo</span>
-        <a id="ghLink" href="https://github.com/joffzxf/nilu" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
-      </footer>
-    </section>
+  <div id="accountMenu" class="account-menu" hidden>
+    <span id="accountName"></span>
+    <button id="logoutBtn" type="button">退出登录</button>
+  </div>
 
-    <section id="hud" class="hud" hidden aria-label="本程数据">
-      <div class="stat stat-score">
-        <span class="stat-label">面积</span>
-        <span class="stat-value" id="scoreValue">0</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">斜率</span>
-        <span class="stat-value small" id="slopeValue">0.000</span>
-      </div>
-      <div class="stat">
-        <span class="stat-label">连续</span>
-        <span class="stat-value small" id="comboValue">×0</span>
-      </div>
-      <div class="stat stat-time">
-        <span class="stat-label">剩余</span>
-        <span class="stat-value small" id="timeValue">1:00</span>
-      </div>
-      <span id="gainToast" class="gain-toast" aria-hidden="true"></span>
-    </section>
-
-    <section id="deck" class="deck" hidden aria-live="polite">
-      <div id="promptCard" class="prompt-card">
-        <div class="prompt-head">
-          <span id="promptLabel" class="prompt-label">第一组</span>
-          <span id="promptTimerText" class="prompt-timer-text">1.2s</span>
-        </div>
-        <div id="promptKeys" class="prompt-keys"></div>
-        <div class="prompt-track"><span id="promptTimer"></span></div>
-        <p class="prompt-hint" id="promptHint">按顺序敲下箭头</p>
-      </div>
-    </section>
-
-    <section id="countdown" class="countdown" hidden aria-hidden="true">
-      <span id="countdownNum">3</span>
-    </section>
-
-    <section id="pause" class="pause" hidden aria-label="已暂停">
-      <div class="pause-card">
-        <p class="eyebrow">停一停</p>
-        <h2>时间可以停，路不会回头。</h2>
-        <div class="pause-actions">
-          <button id="resumeBtn" class="primary-btn" type="button">继续走</button>
-          <button id="pauseQuitBtn" class="text-btn" type="button">结束这一程</button>
-        </div>
-      </div>
-    </section>
-
-    <section id="end" class="end" hidden aria-labelledby="endTitle">
-      <div class="end-inner">
-        <p class="eyebrow"><span class="eyebrow-line" aria-hidden="true"></span>此程已尽</p>
-        <h2 id="endTitle" class="sr-only">这一程的结果</h2>
-        <div class="end-score-row">
-          <span id="endScore" class="end-score">0</span>
-          <span class="end-score-unit">面积</span>
-        </div>
-        <p id="endLine" class="end-line">轨迹不会回头，面积只是面积。</p>
-        <div class="end-stats">
-          <div><span>最高斜率</span><strong id="endSlope">0.000</strong></div>
-          <div><span>最长连续</span><strong id="endCombo">×0</strong></div>
-          <div><span>抬升</span><strong id="endSuccesses">0</strong></div>
-          <div><span>踏空</span><strong id="endMisses">0</strong></div>
-        </div>
-        <p id="endInsight" class="end-insight"></p>
-        <details class="meaning">
-          <summary>这些面积，有意义吗？</summary>
-          <p>没有。它只证明，你曾把六十秒走成这样。<br>但轨迹留下来了。</p>
-        </details>
-        <div class="end-actions">
-          <button id="againBtn" class="primary-btn" type="button"><span>再走一程</span><i aria-hidden="true">→</i></button>
-          <button id="endBoardBtn" class="text-btn" type="button">看看同行者</button>
-          <button id="shareBtn" class="text-btn" type="button">复制这一程</button>
-        </div>
-        <p id="endRank" class="end-rank" hidden></p>
-        <p id="endAuth" class="end-auth"></p>
-        <button id="retrySubmitBtn" class="retry-btn" type="button" hidden>重新提交这一程</button>
-      </div>
-    </section>
-  </main>
-
-  <nav id="touchPad" class="touch-pad" hidden aria-label="方向键">
-    <button type="button" data-key="0" aria-label="左">←</button>
-    <button type="button" data-key="1" aria-label="上">↑</button>
-    <button type="button" data-key="2" aria-label="右">→</button>
-    <button type="button" data-key="3" aria-label="下">↓</button>
+  <nav id="actions" class="actions" aria-label="动作" hidden>
+    <button type="button" data-action="fast">快进</button>
+    <span class="action-dot" aria-hidden="true"></span>
+    <button type="button" data-action="effort">努力</button>
+    <span class="action-dot" aria-hidden="true"></span>
+    <button type="button" data-action="end">结束</button>
   </nav>
 
-  <dialog id="boardDialog" class="dialog board-dialog" aria-labelledby="boardTitle">
-    <header class="dialog-head">
-      <div>
-        <h2 id="boardTitle">同行者</h2>
-        <p id="boardSub" class="dialog-sub">所有走过的账户，都在这里。</p>
-      </div>
-      <button id="boardClose" class="dialog-close" type="button" aria-label="关闭">×</button>
-    </header>
-    <div class="tabs" id="boardTabs" role="tablist" aria-label="榜单范围">
-      <button class="tab is-active" type="button" role="tab" data-scope="all" aria-selected="true">总榜</button>
-      <button class="tab" type="button" role="tab" data-scope="week" aria-selected="false">本周</button>
-      <button class="tab" type="button" role="tab" data-scope="mine" aria-selected="false">我的</button>
+  <section id="fastPanel" class="panel fast-panel" hidden aria-label="快进">
+    <div class="fast-number"><span id="fastDay">0</span><small>天</small></div>
+    <input id="fastRange" class="fast-range" type="range" min="0" max="30000" step="1" value="0" aria-label="快进到第几天">
+    <p id="fastWarning" class="fast-warning" hidden>到终点即注销，不能再回来。</p>
+    <div class="panel-actions">
+      <button id="fastCancel" class="round-btn" type="button" aria-label="取消">×</button>
+      <button id="fastConfirm" class="round-btn confirm" type="button" aria-label="确认快进">→</button>
     </div>
-    <div id="boardList" class="board-list" aria-live="polite"></div>
-    <div id="boardEmpty" class="board-empty" hidden></div>
-    <footer class="dialog-foot">
-      <span id="boardFootNote">成绩由服务器按输入回放复核；所有已登录账户都在榜上。</span>
-      <button id="boardLoginBtn" class="mini-btn" type="button" hidden>用 GitHub 登录</button>
-    </footer>
-  </dialog>
+  </section>
 
-  <dialog id="loginDialog" class="dialog login-dialog" aria-labelledby="loginTitle">
-    <header class="dialog-head">
-      <div>
-        <h2 id="loginTitle">让这一程被记住</h2>
-        <p class="dialog-sub">不注册新账号，也不保存密码。</p>
-      </div>
-      <button id="loginClose" class="dialog-close" type="button" aria-label="关闭">×</button>
-    </header>
-    <div id="loginBody" class="login-body">
-      <div class="login-mark" aria-hidden="true">逆</div>
-      <p id="loginIntro">用 GitHub 账号登录。只读取你的公开用户名与头像，不读取仓库、邮箱或关注关系。</p>
-      <p id="loginSmall" class="login-small">登录后，每一程由服务器复核并计入总榜；所有账户都在榜上，包括还没走出第一步的人。</p>
-      <button id="githubLoginBtn" class="primary-btn wide" type="button">使用 GitHub 登录</button>
-      <button id="devLoginBtn" class="dev-btn" type="button" hidden>本地测试登录</button>
-      <button id="offlineStartBtn" class="dev-btn" type="button" hidden>先走一程</button>
-      <p id="loginNote" class="login-note"></p>
+  <section id="effortPanel" class="panel effort-panel" hidden aria-label="努力">
+    <div id="effortKeys" class="effort-keys"></div>
+    <div class="effort-track"><span id="effortProgress"></span></div>
+    <div id="effortPad" class="effort-pad">
+      <button type="button" data-key="0" aria-label="左">←</button>
+      <button type="button" data-key="1" aria-label="上">↑</button>
+      <button type="button" data-key="2" aria-label="右">→</button>
+      <button type="button" data-key="3" aria-label="下">↓</button>
     </div>
-  </dialog>
+  </section>
 
-  <dialog id="runDialog" class="dialog run-dialog" aria-labelledby="runTitle">
-    <header class="dialog-head">
-      <div>
-        <h2 id="runTitle">一条轨迹</h2>
-        <p id="runMeta" class="dialog-sub"></p>
-      </div>
-      <button id="runClose" class="dialog-close" type="button" aria-label="关闭">×</button>
-    </header>
-    <div class="run-body">
-      <canvas id="runCanvas" aria-label="轨迹图"></canvas>
-      <div id="runStats" class="run-stats"></div>
+  <section id="endPanel" class="panel end-panel" hidden aria-label="结束">
+    <p>结束即注销，不能再回来。</p>
+    <div class="panel-actions">
+      <button id="endCancel" class="text-action" type="button">再走走</button>
+      <button id="endConfirm" class="text-action danger" type="button">结束</button>
     </div>
-  </dialog>
+  </section>
 
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="veil" class="veil" aria-hidden="true"></div>
   <p id="live" class="sr-only" aria-live="polite"></p>
-  <noscript><p class="noscript">《逆旅》需要 JavaScript 才能让光点走起来。</p></noscript>
-  <script type="module" src="./assets/js/main.js"></script>
+  <noscript><p class="noscript">逆旅需要 JavaScript 才能让光点走起来。</p></noscript>
+  <script type="module" src="./assets/js/main.js?v=2.0.0"></script>
 </body>
 </html>

@@ -37,36 +37,62 @@ CREATE TABLE IF NOT EXISTS login_codes (
   used_at INTEGER
 );
 
-CREATE TABLE IF NOT EXISTS challenges (
+/* 一个用户的一生。结束时只标记 ended；一生只有一次，不能复活。 */
+CREATE TABLE IF NOT EXISTS accounts (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'alive',
+  birth_at INTEGER NOT NULL,
+  ended_at INTEGER,
+  end_reason TEXT,
+  last_settled_at INTEGER NOT NULL,
+  age_seconds REAL NOT NULL DEFAULT 0,
+  day REAL NOT NULL DEFAULT 0,
+  slope REAL NOT NULL DEFAULT 0,
+  height REAL NOT NULL DEFAULT 0,
+  area REAL NOT NULL DEFAULT 0,
+  efforts INTEGER NOT NULL DEFAULT 0,
   seed INTEGER NOT NULL,
-  duration_ticks INTEGER NOT NULL,
   engine_version TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 0,
+  meta_json TEXT,
   created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL,
-  used_at INTEGER
+  updated_at INTEGER NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_challenges_user_created ON challenges(user_id, created_at DESC);
+/* 一个登录用户同一时间只能有一个还活着的一生 */
+CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_one_alive
+  ON accounts(user_id) WHERE status = 'alive';
+CREATE INDEX IF NOT EXISTS idx_accounts_user_created
+  ON accounts(user_id, created_at DESC);
 
-CREATE TABLE IF NOT EXISTS runs (
+/* 预留：今后的玩法都可以写成一条事件，不改主表 */
+CREATE TABLE IF NOT EXISTS account_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  at_age REAL NOT NULL,
+  at_ms INTEGER NOT NULL,
+  slope_after REAL,
+  payload_json TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_account_age
+  ON account_events(account_id, at_age);
+
+/* 一次“努力”的待办：答案在服务器，客户端只负责敲 */
+CREATE TABLE IF NOT EXISTS efforts (
   id TEXT PRIMARY KEY,
-  challenge_id TEXT UNIQUE NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+  account_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  score INTEGER NOT NULL,
-  area REAL NOT NULL,
-  max_slope REAL NOT NULL,
-  successes INTEGER NOT NULL,
-  misses INTEGER NOT NULL,
-  max_combo INTEGER NOT NULL,
-  duration_ticks INTEGER NOT NULL,
-  engine_version TEXT NOT NULL,
-  inputs_json TEXT NOT NULL,
-  curve_json TEXT NOT NULL,
-  created_at INTEGER NOT NULL
+  sequence_json TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'open',
+  keys_json TEXT,
+  created_at INTEGER NOT NULL,
+  completed_at INTEGER
 );
 
-CREATE INDEX IF NOT EXISTS idx_runs_user_score ON runs(user_id, score DESC, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_runs_score ON runs(score DESC, created_at ASC);
-CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at);
+CREATE INDEX IF NOT EXISTS idx_efforts_account_created
+  ON efforts(account_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_efforts_user_created
+  ON efforts(user_id, created_at DESC);

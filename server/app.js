@@ -1,9 +1,15 @@
 import {
-  ENGINE_VERSION,
-  getResult,
-  simulate,
-  validateInputs,
-} from '../assets/js/engine.js';
+  LIFE_ENGINE_VERSION,
+  LIFETIME_DAYS,
+  LIFETIME_SECONDS,
+  applyEffort,
+  createLife,
+  effortLength,
+  endLife,
+  fastForward,
+  makeSequence,
+  settle,
+} from '../assets/js/life.js';
 
 class HttpError extends Error {
   constructor(status, code, message) {
@@ -21,20 +27,14 @@ function fail(status, code, message) {
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      ...headers,
-    },
+    headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers },
   });
 }
 
 function redirect(location) {
   return new Response(null, {
     status: 302,
-    headers: {
-      Location: location,
-      'Cache-Control': 'no-store',
-    },
+    headers: { Location: location, 'Cache-Control': 'no-store' },
   });
 }
 
@@ -66,65 +66,72 @@ function fnv1a(value) {
 
 function publicUser(row) {
   if (!row) return null;
-  return {
-    id: row.id,
-    login: row.login,
-    name: row.name || row.login,
-    avatarUrl: row.avatarUrl || '',
-  };
+  return { id: row.id, login: row.login, name: row.name || row.login, avatarUrl: row.avatarUrl || '' };
 }
 
-function parseCurve(value) {
+function parseJsonArray(value) {
   if (!value) return [];
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value;
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter((item) => Number.isFinite(Number(item)))
-      .slice(0, 240)
-      .map((item) => Math.round(Number(item) * 100) / 100);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
 }
 
-function runJson(row) {
+function rowToLife(row) {
+  return {
+    bornAt: Number(row.birthAt),
+    age: Number(row.age),
+    day: Number(row.day),
+    slope: Number(row.slope),
+    height: Number(row.height),
+    area: Number(row.area),
+    efforts: Number(row.efforts),
+    status: row.status,
+    endReason: row.endReason || null,
+    seed: Number(row.seed),
+  };
+}
+
+function accountJson(row) {
   if (!row) return null;
   return {
     id: row.id,
-    score: Number(row.score || 0),
-    area: Number(row.area || 0),
-    maxSlope: Number(row.maxSlope || 0),
-    successes: Number(row.successes || 0),
-    misses: Number(row.misses || 0),
-    maxCombo: Number(row.maxCombo || 0),
-    durationTicks: Number(row.durationTicks || 0),
-    createdAt: Number(row.createdAt || 0),
-    curve: parseCurve(row.curveJson),
+    status: row.status,
+    birthAt: Number(row.birthAt),
+    age: Number(row.age),
+    day: Number(row.day),
+    slope: Number(row.slope),
+    height: Number(row.height),
+    area: Number(row.area),
+    efforts: Number(row.efforts),
+    endReason: row.endReason || null,
+    engineVersion: row.engineVersion,
   };
 }
 
-function bestJson(row) {
-  const run = runJson(row);
-  if (!run) return null;
+function summaryJson(row) {
   return {
-    score: run.score,
-    maxSlope: run.maxSlope,
-    successes: run.successes,
-    misses: run.misses,
-    maxCombo: run.maxCombo,
-    createdAt: run.createdAt,
-    curve: run.curve,
+    id: row.id,
+    status: row.status,
+    birthAt: Number(row.birthAt),
+    endedAt: row.endedAt ? Number(row.endedAt) : null,
+    endReason: row.endReason || null,
+    day: Number(row.day),
+    age: Number(row.age),
+    area: Number(row.area),
+    efforts: Number(row.efforts),
   };
 }
 
-function startOfWeekShanghai(timestamp) {
-  const offset = 8 * 60 * 60 * 1000;
-  const local = new Date(timestamp + offset);
-  local.setUTCHours(0, 0, 0, 0);
-  const day = (local.getUTCDay() + 6) % 7;
-  local.setUTCDate(local.getUTCDate() - day);
-  return local.getTime() - offset;
+function eventsJson(rows) {
+  return rows.map((event) => ({
+    type: event.type,
+    at: Number(event.at),
+    atMs: Number(event.atMs),
+    slope: event.slope === null || event.slope === undefined ? null : Number(event.slope),
+  }));
 }
 
 function isAllowedOrigin(origin, config) {
@@ -166,6 +173,11 @@ async function readJson(request, maxBytes = 64 * 1024) {
   }
 }
 
+function endedAtFor(row, life, now) {
+  if (life.endReason === 'lifespan') return Number(row.birthAt) + LIFETIME_SECONDS * 1000;
+  return now;
+}
+
 export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
   if (!store) throw new Error('createApp: store is required');
   if (!config) throw new Error('createApp: config is required');
@@ -198,169 +210,332 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
 
   async function createSessionFor(user, request) {
     const token = randomHex(32);
-    const createdAt = now();
+    const current = now();
     await store.createSession({
       tokenHash: await sha256(token),
       userId: user.id,
-      createdAt,
-      expiresAt: createdAt + config.sessionTtlMs,
+      createdAt: current,
+      expiresAt: current + config.sessionTtlMs,
       userAgent: request.headers.get('user-agent') || '',
     });
     return token;
   }
 
-  async function challengeResponse(auth, body, request) {
-    const current = now();
-    const recent = await store.countChallengesSince(auth.user.id, current - 60 * 60 * 1000);
-    if (recent >= 120) fail(429, 'rate_limited', '这一小时走得有点多，歇一会儿再来');
-    await store.cleanup(current);
-    await store.invalidateOpenChallenges(auth.user.id, current);
+  /**
+   * 把离线期间的时间补上。
+   * 乐观锁冲突就重读重算；多标签页也不会把时间算两遍。
+   */
+  async function settleAccount(userId, at = now()) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const row = await store.getAliveAccount(userId);
+      if (!row) return null;
+      const life = rowToLife(row);
+      const delta = Math.max(0, (at - Number(row.lastSettledAt)) / 1000);
+      const wasAlive = life.status === 'alive';
+      settle(life, delta);
 
-    const id = `c_${randomHex(16)}`;
-    const seed = randomUint32();
-    const durationTicks = config.durationTicks;
-    const expiresAt = current + config.challengeTtlMs;
-    await store.createChallenge({
-      id,
-      userId: auth.user.id,
-      seed,
-      durationTicks,
-      engineVersion: ENGINE_VERSION,
-      createdAt: current,
-      expiresAt,
-    });
-    return json({
-      id,
-      seed,
-      durationTicks,
-      engineVersion: ENGINE_VERSION,
-      expiresAt,
-    });
+      let endedAt = null;
+      if (life.status === 'ended') endedAt = endedAtFor(row, life, at);
+      const updated = {
+        ...row,
+        status: life.status,
+        endedAt,
+        endReason: life.endReason,
+        lastSettledAt: at,
+        age: life.age,
+        day: life.day,
+        slope: life.slope,
+        height: life.height,
+        area: life.area,
+        efforts: life.efforts,
+        updatedAt: at,
+      };
+      const ok = await store.updateAccount(updated);
+      if (!ok) continue;
+
+      if (wasAlive && life.status === 'ended') {
+        await store.addEvent({
+          accountId: row.id,
+          type: 'end',
+          atAge: life.age,
+          atMs: at,
+          slopeAfter: life.slope,
+          payload: { reason: life.endReason },
+        });
+      }
+      return store.getAccountById(row.id);
+    }
+    fail(409, 'account_busy', '这一生正在被另一个页面写入，请稍后再试');
   }
 
-  async function submitRun(auth, request) {
-    const body = await readJson(request, 256 * 1024);
-    const challengeId = String(body.challengeId || '');
-    if (!challengeId || challengeId.length > 80) fail(400, 'bad_challenge', '缺少有效的这一程');
-    const current = now();
-    const recent = await store.countRunsSince(auth.user.id, current - 60 * 60 * 1000);
-    if (recent >= 40) fail(429, 'rate_limited', '这一小时走得有点多，歇一会儿再来');
-
-    const challenge = await store.getChallenge(challengeId);
-    if (!challenge) fail(404, 'challenge_not_found', '找不到这一程的凭证');
-    if (challenge.userId !== auth.user.id) fail(403, 'challenge_forbidden', '这一程不属于当前账号');
-
-    if (challenge.usedAt) {
-      const existing = await store.getRunByChallenge(challengeId);
-      if (existing) return json(await runResultPayload(existing, auth, true));
-      fail(409, 'challenge_used', '这一程已经提交过了');
+  async function accountPayload(userId, at = now()) {
+    const row = await settleAccount(userId, at);
+    if (!row) {
+      const lastEnded = await store.getLastEnded(userId);
+      return {
+        account: null,
+        events: [],
+        serverNow: at,
+        lastEnded: lastEnded ? {
+          endedAt: Number(lastEnded.endedAt),
+          endReason: lastEnded.endReason,
+          area: Number(lastEnded.area),
+          day: Number(lastEnded.day),
+        } : null,
+      };
     }
-    if (challenge.expiresAt <= current) fail(410, 'challenge_expired', '这一程的复核凭证已过期');
-    if (challenge.engineVersion !== ENGINE_VERSION) {
-      fail(409, 'engine_mismatch', '这一程由旧版本引擎生成，无法复核');
-    }
-
-    const minMs = (challenge.durationTicks / 60) * 1000 * config.minRunRatio;
-    if (current - challenge.createdAt < minMs) {
-      fail(409, 'too_fast', '这一程走得太快了，无法复核');
-    }
-
-    const validation = validateInputs(body.inputs, challenge.durationTicks);
-    if (!validation.ok) fail(400, validation.error, '输入记录不合法');
-
-    const simulated = simulate({
-      seed: challenge.seed,
-      durationTicks: challenge.durationTicks,
-      inputs: body.inputs,
-    });
-    const result = getResult(simulated);
-
-    const row = {
-      id: `r_${randomHex(12)}`,
-      challengeId,
-      userId: auth.user.id,
-      score: result.score,
-      area: result.area,
-      maxSlope: result.slope,
-      successes: result.successes,
-      misses: result.misses,
-      maxCombo: result.maxCombo,
-      durationTicks: challenge.durationTicks,
-      engineVersion: ENGINE_VERSION,
-      inputs: body.inputs,
-      curve: result.curve,
-      createdAt: current,
-    };
-
-    try {
-      await store.insertRun(row);
-    } catch (error) {
-      const existing = await store.getRunByChallenge(challengeId);
-      if (existing) return json(await runResultPayload(existing, auth, true));
-      throw error;
-    }
-    await store.markChallengeUsed(challengeId, current);
-
-    const inserted = await store.getRunByChallenge(challengeId);
-    return json(await runResultPayload(inserted || row, auth, false));
+    return rowPayload(row, at);
   }
 
-  async function runResultPayload(row, auth, duplicate) {
-    const totalAccounts = await store.countUsers();
-    const best = await store.getUserBest(auth.user.id);
-    const rank = await store.getRank(auth.user.id, null);
+  async function rowPayload(row, at = now(), extra = {}) {
+    if (!row) return { account: null, events: [], serverNow: at, ...extra };
     return {
-      run: runJson(row),
-      rank,
-      personalBest: best ? Number(best.score) : Number(row.score || 0),
-      totalAccounts,
-      duplicate: Boolean(duplicate),
+      account: accountJson(row),
+      events: eventsJson(await store.getEvents(row.id)),
+      serverNow: at,
+      ...extra,
     };
   }
 
-  async function leaderboard(request) {
-    const url = new URL(request.url);
-    const scope = url.searchParams.get('scope') || 'all';
-    if (!['all', 'week'].includes(scope)) fail(400, 'bad_scope', '榜单范围不对');
-    const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit'), 10) || 50));
-    const offset = Math.max(0, Math.min(10000, Number.parseInt(url.searchParams.get('offset'), 10) || 0));
-    const current = now();
-    const since = scope === 'week' ? startOfWeekShanghai(current) : null;
-    const rows = await store.getLeaderboard({ since, limit, offset });
-    const entries = rows.map((row, index) => ({
-      rank: offset + index + 1,
-      userId: row.userId,
-      login: row.login,
-      name: row.name || row.login,
-      avatarUrl: row.avatarUrl || '',
-      score: Number(row.score || 0),
-      maxSlope: Number(row.maxSlope || 0),
-      successes: Number(row.successes || 0),
-      misses: Number(row.misses || 0),
-      maxCombo: Number(row.maxCombo || 0),
-      createdAt: row.createdAt ? Number(row.createdAt) : null,
-      curve: parseCurve(row.curveJson),
-      hasRun: Boolean(row.runId),
-    }));
+  async function createAccount(auth, at = now()) {
+    const existing = await settleAccount(auth.user.id, at);
+    if (existing) return { account: existing };
+    const recent = await store.countAccountsSince(auth.user.id, at - 60 * 60 * 1000);
+    if (recent >= 10) fail(429, 'rate_limited', '这一小时开始得有点多，先让这一生走一会儿');
 
-    const auth = await authenticate(request);
-    let me = null;
-    if (auth) {
-      const bestScore = await store.getBestScore(auth.user.id, since);
-      const rank = await store.getRank(auth.user.id, since);
-      me = {
-        rank,
-        score: bestScore === null ? 0 : bestScore,
-        hasRun: bestScore !== null,
+    const id = `a_${randomHex(12)}`;
+    const seed = randomUint32();
+    const row = {
+      id,
+      userId: auth.user.id,
+      status: 'alive',
+      birthAt: at,
+      endedAt: null,
+      endReason: null,
+      lastSettledAt: at,
+      age: 0,
+      day: 0,
+      slope: 0,
+      height: 0,
+      area: 0,
+      efforts: 0,
+      seed,
+      engineVersion: LIFE_ENGINE_VERSION,
+      version: 0,
+      metaJson: '{}',
+      createdAt: at,
+      updatedAt: at,
+    };
+    try {
+      await store.createAccount(row);
+    } catch {
+      const alive = await store.getAliveAccount(auth.user.id);
+      if (alive) return { account: alive };
+      throw new HttpError(409, 'account_conflict', '这一生刚刚被创建，请重试');
+    }
+    await store.addEvent({
+      accountId: id,
+      type: 'birth',
+      atAge: 0,
+      atMs: at,
+      slopeAfter: 0,
+      payload: null,
+    });
+    return { account: await store.getAccountById(id) };
+  }
+
+  async function startEffort(auth, at = now()) {
+    const row = await settleAccount(auth.user.id, at);
+    if (!row) fail(409, 'no_alive_account', '这一生已经结束了');
+    if (row.status !== 'alive') fail(409, 'account_ended', '这一生已经结束了');
+    const recent = await store.countEffortsSince(row.id, at - 60 * 60 * 1000);
+    if (recent >= 240) fail(429, 'rate_limited', '这一小时努力得有点多，先歇一会儿');
+
+    await store.abandonOpenEfforts(row.id, at);
+    const length = effortLength(Number(row.efforts));
+    const sequence = makeSequence(Number(row.seed), Number(row.efforts), length);
+    const effortId = `e_${randomHex(12)}`;
+    await store.createEffort({
+      id: effortId,
+      accountId: row.id,
+      userId: auth.user.id,
+      sequence,
+      createdAt: at,
+    });
+    return {
+      effortId,
+      sequence,
+      account: accountJson(row),
+      events: eventsJson(await store.getEvents(row.id)),
+      serverNow: at,
+    };
+  }
+
+  async function completeEffort(auth, effortId, keys, at = now()) {
+    const effort = await store.getEffort(effortId);
+    if (!effort || effort.userId !== auth.user.id) fail(404, 'effort_not_found', '找不到这次努力');
+    if (effort.status !== 'open') fail(409, 'effort_used', '这次努力已经结束了');
+
+    if (!Array.isArray(keys) || keys.some((key) => !Number.isInteger(key) || key < 0 || key > 3)) {
+      fail(400, 'bad_keys', '输入不合法');
+    }
+
+    const sequence = parseJsonArray(effort.sequenceJson);
+    const correct = keys.length === sequence.length && sequence.every((key, index) => key === keys[index]);
+
+    if (!correct) {
+      await store.completeEffort({
+        id: effortId,
+        accountId: effort.accountId,
+        status: 'failed',
+        keys,
+        now: at,
+      });
+      const row = await settleAccount(auth.user.id, at);
+      return {
+        ok: false,
+        reason: 'wrong',
+        account: row ? accountJson(row) : null,
+        events: row ? eventsJson(await store.getEvents(row.id)) : [],
+        serverNow: at,
       };
     }
 
-    return json({
-      scope,
-      total: await store.countUsers(),
-      entries,
-      me,
+    const claimed = await store.completeEffort({
+      id: effortId,
+      accountId: effort.accountId,
+      status: 'done',
+      keys,
+      now: at,
     });
+    if (!claimed) fail(409, 'effort_used', '这次努力已经结束了');
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const row = await settleAccount(auth.user.id, at);
+      if (!row) fail(409, 'account_ended', '这一生已经结束了');
+      if (row.status !== 'alive') {
+        return {
+          ok: false,
+          reason: 'ended',
+          account: accountJson(row),
+          events: eventsJson(await store.getEvents(row.id)),
+          serverNow: at,
+        };
+      }
+      const life = rowToLife(row);
+      const gain = applyEffort(life);
+      const updated = {
+        ...row,
+        slope: life.slope,
+        efforts: life.efforts,
+        updatedAt: at,
+      };
+      const ok = await store.updateAccount(updated);
+      if (!ok) continue;
+
+      await store.addEvent({
+        accountId: row.id,
+        type: 'effort',
+        atAge: life.age,
+        atMs: at,
+        slopeAfter: life.slope,
+        payload: { effortId, length: sequence.length },
+      });
+      return {
+        ok: true,
+        gain,
+        account: accountJson(await store.getAccountById(row.id)),
+        events: eventsJson(await store.getEvents(row.id)),
+        serverNow: at,
+      };
+    }
+    fail(409, 'account_busy', '这一生正在被另一个页面写入，请稍后再试');
+  }
+
+  async function fastForwardAccount(auth, targetDay, at = now()) {
+    const target = Number(targetDay);
+    if (!Number.isInteger(target) || target < 0 || target > LIFETIME_DAYS) {
+      fail(400, 'bad_target', '只能快进到 0 到 30000 天');
+    }
+
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const row = await settleAccount(auth.user.id, at);
+      if (!row) fail(409, 'no_alive_account', '这一生已经结束了');
+      if (row.status !== 'alive') return rowPayload(row, at, { ended: true });
+      if (target < Number(row.day) - 1e-9) fail(400, 'backwards', '只能向前');
+
+      const life = rowToLife(row);
+      const result = fastForward(life, target);
+      if (!result.ok) fail(400, 'bad_target', '只能向前');
+
+      const endedAt = life.status === 'ended' ? endedAtFor(row, life, at) : null;
+      const updated = {
+        ...row,
+        status: life.status,
+        endedAt,
+        endReason: life.endReason,
+        lastSettledAt: at,
+        age: life.age,
+        day: life.day,
+        slope: life.slope,
+        height: life.height,
+        area: life.area,
+        efforts: life.efforts,
+        updatedAt: at,
+      };
+      if (await store.updateAccount(updated)) {
+        await store.addEvent({
+          accountId: row.id,
+          type: 'fast_forward',
+          atAge: life.age,
+          atMs: at,
+          slopeAfter: life.slope,
+          payload: { targetDay: target, ended: life.status === 'ended' },
+        });
+        if (life.status === 'ended') {
+          await store.addEvent({
+            accountId: row.id,
+            type: 'end',
+            atAge: life.age,
+            atMs: at,
+            slopeAfter: life.slope,
+            payload: { reason: life.endReason },
+          });
+        }
+        return rowPayload(await store.getAccountById(row.id), at, { ended: life.status === 'ended' });
+      }
+    }
+    fail(409, 'account_busy', '这一生正在被另一个页面写入，请稍后再试');
+  }
+
+  async function endAccount(auth, at = now()) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      const row = await settleAccount(auth.user.id, at);
+      if (!row) fail(409, 'no_alive_account', '这一生已经结束了');
+      if (row.status !== 'alive') return rowPayload(row, at, { ended: true });
+      const life = rowToLife(row);
+      endLife(life, 'manual');
+      const updated = {
+        ...row,
+        status: 'ended',
+        endedAt: at,
+        endReason: 'manual',
+        lastSettledAt: at,
+        updatedAt: at,
+      };
+      if (await store.updateAccount(updated)) {
+        await store.addEvent({
+          accountId: row.id,
+          type: 'end',
+          atAge: life.age,
+          atMs: at,
+          slopeAfter: life.slope,
+          payload: { reason: 'manual' },
+        });
+        return rowPayload(await store.getAccountById(row.id), at, { ended: true });
+      }
+    }
+    fail(409, 'account_busy', '这一生正在被另一个页面写入，请稍后再试');
   }
 
   async function githubStart(request) {
@@ -372,11 +547,11 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
     if (!/^[A-Za-z0-9_-]{8,128}$/.test(nonce)) fail(400, 'bad_nonce', '登录会话不合法');
     const fallbackOrigin = config.apiOrigin ? config.appOrigins[0] : new URL(request.url).origin;
     const returnUrl = safeReturnUrl(url.searchParams.get('return'), config, fallbackOrigin);
-    const state = randomHex(24);
+    const stateValue = randomHex(24);
     const current = now();
     await store.cleanup(current);
     await store.createLoginState({
-      state,
+      state: stateValue,
       nonce,
       returnUrl,
       createdAt: current,
@@ -389,17 +564,17 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
     target.searchParams.set('client_id', config.githubClientId);
     target.searchParams.set('redirect_uri', redirectUri);
     target.searchParams.set('scope', 'read:user');
-    target.searchParams.set('state', state);
+    target.searchParams.set('state', stateValue);
     target.searchParams.set('allow_signup', 'true');
     return redirect(target.toString());
   }
 
   async function githubCallback(request) {
     const url = new URL(request.url);
-    const state = String(url.searchParams.get('state') || '');
+    const stateValue = String(url.searchParams.get('state') || '');
     const code = String(url.searchParams.get('code') || '');
     const defaultReturn = `${config.appOrigins[0] || 'https://joffzxf.github.io'}/`;
-    const stateRow = state ? await store.consumeLoginState(state, now()) : null;
+    const stateRow = stateValue ? await store.consumeLoginState(stateValue, now()) : null;
     const returnUrl = stateRow?.returnUrl || defaultReturn;
     const nonce = stateRow?.nonce || '';
     const failRedirect = (reason) => {
@@ -491,10 +666,13 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
       return json({
         ok: true,
         service: 'nilu',
-        engineVersion: ENGINE_VERSION,
+        engineVersion: LIFE_ENGINE_VERSION,
+        schemaVersion: 2,
+        lifetimeDays: LIFETIME_DAYS,
+        daySeconds: 86400,
         githubOAuth: Boolean(config.githubClientId && config.githubClientSecret),
         devAuth: Boolean(config.devAuth),
-        durationTicks: config.durationTicks,
+        features: ['account', 'effort', 'fastForward', 'end', 'multiAccount', 'events'],
         now: now(),
       });
     }
@@ -520,41 +698,67 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
     if (path === '/api/auth/github/callback' && method === 'GET') return githubCallback(request);
     if (path === '/api/auth/exchange' && method === 'POST') return exchangeLoginCode(request);
 
-    if (path === '/api/challenges' && method === 'POST') {
+    if (path === '/api/account' && method === 'GET') {
       const auth = await requireAuth(request);
-      return challengeResponse(auth, {}, request);
+      return json(await accountPayload(auth.user.id));
     }
 
-    if (path === '/api/runs' && method === 'POST') {
+    if (path === '/api/account' && method === 'POST') {
       const auth = await requireAuth(request);
-      return submitRun(auth, request);
+      const created = await createAccount(auth, now());
+      return json(await accountPayload(auth.user.id));
     }
 
-    if (path === '/api/leaderboard' && method === 'GET') return leaderboard(request);
-
-    if (path === '/api/me' && method === 'GET') {
+    if (path === '/api/accounts' && method === 'GET') {
       const auth = await requireAuth(request);
-      const best = await store.getUserBest(auth.user.id);
+      const rows = await store.listAccounts(auth.user.id);
       return json({
-        user: auth.user,
-        best: bestJson(best),
-        rank: await store.getRank(auth.user.id, null),
-        totalAccounts: await store.countUsers(),
+        accounts: rows.map(summaryJson),
+        serverNow: now(),
       });
     }
 
-    if (path === '/api/me/runs' && method === 'GET') {
+    if (path === '/api/account/efforts' && method === 'POST') {
       const auth = await requireAuth(request);
-      const limit = Math.max(1, Math.min(100, Number.parseInt(url.searchParams.get('limit'), 10) || 30));
-      const rows = await store.getUserRuns(auth.user.id, limit);
+      return json(await startEffort(auth, now()));
+    }
+
+    const effortMatch = /^\/api\/account\/efforts\/([A-Za-z0-9_]+)\/complete$/.exec(path);
+    if (effortMatch && method === 'POST') {
+      const auth = await requireAuth(request);
+      const body = await readJson(request);
+      return json(await completeEffort(auth, effortMatch[1], body.keys, now()));
+    }
+
+    if (path === '/api/account/fast-forward' && method === 'POST') {
+      const auth = await requireAuth(request);
+      const body = await readJson(request);
+      return json(await fastForwardAccount(auth, body.targetDay, now()));
+    }
+
+    if (path === '/api/account/end' && method === 'POST') {
+      const auth = await requireAuth(request);
+      const body = await readJson(request);
+      if (body.confirm !== true) fail(400, 'confirm_required', '需要确认');
+      return json(await endAccount(auth, now()));
+    }
+
+    if (path === '/api/account/events' && method === 'GET') {
+      const auth = await requireAuth(request);
+      const row = await settleAccount(auth.user.id, now());
+      if (!row) fail(404, 'no_alive_account', '这一生已经结束了');
+      return json({ events: eventsJson(await store.getEvents(row.id)) });
+    }
+
+    if (path === '/api/me' && method === 'GET') {
+      const auth = await requireAuth(request);
+      const alive = await store.getAliveAccount(auth.user.id);
+      const accounts = await store.listAccounts(auth.user.id);
       return json({
-        entries: rows.map((row) => ({
-          ...runJson(row),
-          userId: auth.user.id,
-          login: auth.user.login,
-          name: auth.user.name,
-          avatarUrl: auth.user.avatarUrl,
-        })),
+        user: auth.user,
+        alive: alive ? summaryJson(alive) : null,
+        accounts: accounts.map(summaryJson),
+        serverNow: now(),
       });
     }
 
@@ -562,21 +766,6 @@ export function createApp({ store, config, fetchImpl = globalThis.fetch }) {
       const auth = await authenticate(request);
       if (auth) await store.deleteSession(auth.tokenHash);
       return json({ ok: true });
-    }
-
-    const runMatch = /^\/api\/runs\/([A-Za-z0-9_]+)$/.exec(path);
-    if (runMatch && method === 'GET') {
-      const row = await store.getRunById(runMatch[1]);
-      if (!row) fail(404, 'run_not_found', '找不到这条轨迹');
-      return json({
-        run: {
-          ...runJson(row),
-          userId: row.userId,
-          login: row.login,
-          name: row.name || row.login,
-          avatarUrl: row.avatarUrl || '',
-        },
-      });
     }
 
     fail(404, 'not_found', '没有这个接口');

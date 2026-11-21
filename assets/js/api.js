@@ -25,17 +25,13 @@ export class ApiClient {
     this.health = null;
   }
 
-  setBase(base) {
-    this.base = String(base || '').replace(/\/+$/, '');
-  }
-
   setToken(token) {
     this.token = token || '';
     try {
       if (this.token) localStorage.setItem(TOKEN_KEY, this.token);
       else localStorage.removeItem(TOKEN_KEY);
     } catch {
-      /* 隐私模式下忽略 */
+      /* ignore */
     }
   }
 
@@ -74,7 +70,6 @@ export class ApiClient {
     } catch {
       data = null;
     }
-
     if (!response.ok) {
       const code = data && data.error ? data.error : `http_${response.status}`;
       const message = data && data.message ? data.message : `服务返回 ${response.status}`;
@@ -120,36 +115,49 @@ export class ApiClient {
     return this.request('/api/auth/logout', { method: 'POST', body: {} });
   }
 
-  createChallenge() {
-    return this.request('/api/challenges', { method: 'POST', body: {}, timeout: 6000 });
+  getAccount() {
+    return this.request('/api/account');
   }
 
-  submit({ challengeId, inputs }) {
-    return this.request('/api/runs', {
+  createAccount() {
+    return this.request('/api/account', { method: 'POST', body: {} });
+  }
+
+  startEffort() {
+    return this.request('/api/account/efforts', { method: 'POST', body: {} });
+  }
+
+  completeEffort(effortId, keys) {
+    return this.request(`/api/account/efforts/${encodeURIComponent(effortId)}/complete`, {
       method: 'POST',
-      body: { challengeId, inputs, clientVersion: 'web' },
-      timeout: 15000,
+      body: { keys },
     });
   }
 
-  leaderboard(scope = 'all', limit = 50, offset = 0) {
-    const query = new URLSearchParams({ scope, limit: String(limit), offset: String(offset) });
-    return this.request(`/api/leaderboard?${query.toString()}`, { auth: true });
+  fastForward(targetDay) {
+    return this.request('/api/account/fast-forward', {
+      method: 'POST',
+      body: { targetDay },
+    });
   }
 
-  myRuns(limit = 30) {
-    return this.request(`/api/me/runs?limit=${limit}`);
+  endAccount() {
+    return this.request('/api/account/end', { method: 'POST', body: { confirm: true } });
   }
-}
 
-export function randomSeed() {
-  const buffer = new Uint32Array(1);
-  crypto.getRandomValues(buffer);
-  return buffer[0] >>> 0;
+  listAccounts() {
+    return this.request('/api/accounts');
+  }
 }
 
 export function makeNonce() {
   const bytes = new Uint8Array(16);
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export function randomSeed() {
+  const buffer = new Uint32Array(1);
+  crypto.getRandomValues(buffer);
+  return buffer[0] >>> 0;
 }

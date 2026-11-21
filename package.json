@@ -1,17 +1,17 @@
 {
   "name": "nilu",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "逆旅 · 一个只能向前的光点。六十秒，斜率，与轨迹下的面积。",
+  "description": "逆旅 · 一个光点的一生。现实一秒，游戏一秒。",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "start": "node --env-file-if-exists=.env server/node.js",
     "dev": "node --env-file-if-exists=.env server/node.js",
-    "test": "node --test tests/engine.test.js tests/api.test.js",
-    "check": "node --check assets/js/engine.js && node --check assets/js/api.js && node --check assets/js/audio.js && node --check assets/js/render.js && node --check assets/js/main.js && node --check server/app.js && node --check server/store-sql.js && node --check server/node.js && node --check server/worker.js",
+    "test": "node --test tests/life.test.js tests/api.test.js",
+    "check": "node --check assets/js/life.js && node --check assets/js/api.js && node --check assets/js/audio.js && node --check assets/js/render.js && node --check assets/js/main.js && node --check server/app.js && node --check server/store-sql.js && node --check server/node.js && node --check server/worker.js",
     "deploy:api": "npx wrangler deploy",
     "db:init": "npx wrangler d1 execute nilu --file server/schema.sql --remote"
   }

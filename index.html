@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>逆旅</title>
+  <meta name="description" content="一个光点的一生。现实一秒，游戏一秒。到三万天，自动结束。">
+  <meta name="theme-color" content="#07080a">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://avatars.githubusercontent.com https://*.githubusercontent.com; connect-src 'self' https:; font-src 'self'; base-uri 'none'; form-action 'self'">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="逆旅 · 一个光点的一生">
+  <meta property="og:description" content="它不会因为你关掉网页而停下。快进、努力，或者结束。到三万天，自动结束。">
+  <meta property="og:image" content="https://joffzxf.github.io/nilu/assets/img/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://joffzxf.github.io/nilu/">
+  <meta property="og:site_name" content="逆旅">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://joffzxf.github.io/nilu/assets/img/og.png">
+  <link rel="icon" href="./assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./assets/css/style.css?v=2.4.0">
+</head>
+<body class="is-booting">
+  <canvas id="stage" aria-hidden="true"></canvas>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div id="area" class="area" aria-label="累积面积"><span id="areaValue">0</span></div>
+
+  <button id="accountBtn" class="account-orb" type="button" aria-label="账号" hidden>
+    <svg class="orb-github" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+    <img id="accountAvatar" alt="" referrerpolicy="no-referrer" hidden>
+  </button>
+
+  <div id="accountMenu" class="account-menu" hidden>
+    <span id="accountName"></span>
+    <button id="logoutBtn" type="button">退出登录</button>
+  </div>
+
+  <nav id="actions" class="actions" aria-label="动作" hidden>
+    <button type="button" data-action="fast">快进</button>
+    <span class="action-dot" aria-hidden="true"></span>
+    <button type="button" data-action="effort">努力</button>
+    <span class="action-dot" aria-hidden="true"></span>
+    <button type="button" data-action="end">结束</button>
+  </nav>
+
+  <section id="fastPanel" class="panel fast-panel" hidden aria-label="快进">
+    <div class="fast-number"><span id="fastDay">0</span><small>天</small></div>
+    <input id="fastRange" class="fast-range" type="range" min="0" max="30000" step="1" value="0" aria-label="快进到第几天">
+    <p id="fastWarning" class="fast-warning" hidden>到终点即注销，不能再回来。</p>
+    <div class="panel-actions">
+      <button id="fastCancel" class="round-btn" type="button" aria-label="取消">×</button>
+      <button id="fastConfirm" class="round-btn confirm" type="button" aria-label="确认快进">→</button>
+    </div>
+  </section>
+
+  <section id="effortPanel" class="panel effort-panel" hidden aria-label="努力">
+    <div id="effortKeys" class="effort-keys"></div>
+    <div class="effort-track"><span id="effortProgress"></span></div>
+    <div id="effortPad" class="effort-pad">
+      <button type="button" data-key="0" aria-label="左">←</button>
+      <button type="button" data-key="1" aria-label="上">↑</button>
+      <button type="button" data-key="2" aria-label="右">→</button>
+      <button type="button" data-key="3" aria-label="下">↓</button>
+    </div>
+  </section>
+
+  <section id="endPanel" class="panel end-panel" hidden aria-label="结束">
+    <p>结束即注销，不能再回来。</p>
+    <div class="panel-actions">
+      <button id="endCancel" class="text-action" type="button">再走走</button>
+      <button id="endConfirm" class="text-action danger" type="button">结束</button>
+    </div>
+  </section>
+
+  <div id="veil" class="veil" aria-hidden="true"></div>
+  <p id="live" class="sr-only" aria-live="polite"></p>
+  <noscript><p class="noscript">逆旅需要 JavaScript 才能让光点走起来。</p></noscript>
+  <script type="module" src="./assets/js/main.js?v=2.4.0"></script>
+</body>
+</html>

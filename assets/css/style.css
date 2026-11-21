@@ -124,84 +124,6 @@ body.is-dead .area { animation: none; opacity: 0; }
   100% { opacity: 0.7; }
 }
 
-/* ---------- age axis ---------- */
-
-.age-axis {
-  position: fixed;
-  left: 7vw;
-  right: 7vw;
-  bottom: 24px;
-  z-index: 6;
-  height: 34px;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.9s var(--ease);
-}
-
-body:not(.is-booting) .age-axis { opacity: 1; }
-body.is-dead .age-axis,
-body.has-panel .age-axis { opacity: 0; }
-
-.age-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 16px;
-  height: 1px;
-  background: rgba(238, 232, 220, 0.12);
-}
-
-#ageFill {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 0;
-  background: linear-gradient(90deg, rgba(227, 181, 102, 0.12), rgba(227, 181, 102, 0.42));
-}
-
-#ageMarker {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--amber-soft);
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 12px rgba(227, 181, 102, 0.7);
-}
-
-.age-ticks span {
-  position: absolute;
-  top: 21px;
-  transform: translateX(-50%);
-  font-size: 8px;
-  letter-spacing: 0.08em;
-  color: rgba(238, 232, 220, 0.28);
-  font-variant-numeric: tabular-nums;
-}
-
-.age-ticks span:first-child { transform: translateX(0); }
-.age-ticks span:last-child { transform: translateX(-100%); }
-
-.age-readout {
-  position: absolute;
-  top: -8px;
-  left: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
-  transform: translateX(-50%);
-  color: rgba(227, 181, 102, 0.8);
-  font-family: var(--serif);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.age-readout small { font-size: 8px; letter-spacing: 0.1em; color: rgba(238, 232, 220, 0.35); }
-
 /* ---------- account orb ---------- */
 
 .account-orb {
@@ -259,7 +181,7 @@ body.has-panel .age-axis { opacity: 0; }
 .actions {
   position: fixed;
   left: 50%;
-  bottom: max(76px, calc(66px + env(safe-area-inset-bottom)));
+  bottom: max(28px, calc(18px + env(safe-area-inset-bottom)));
   z-index: 7;
   transform: translateX(-50%);
   display: flex;
@@ -523,16 +445,14 @@ body.is-booting .actions { opacity: 0; pointer-events: none; }
 
 @media (pointer: coarse) {
   .effort-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-  .age-axis { left: 18px; right: 18px; bottom: 16px; }
-  .actions { bottom: max(72px, calc(62px + env(safe-area-inset-bottom))); }
+  .actions { bottom: max(24px, calc(16px + env(safe-area-inset-bottom))); }
   .actions button { font-size: 13px; letter-spacing: 0.2em; }
 }
 
 @media (max-width: 640px) {
   .area { top: 18px; right: 18px; font-size: 12px; }
   .account-orb { top: 16px; left: 16px; width: 25px; height: 25px; }
-  .age-axis { left: 18px; right: 18px; bottom: 16px; }
-  .actions { bottom: max(72px, calc(62px + env(safe-area-inset-bottom))); gap: 16px; }
+  .actions { gap: 16px; }
   .actions button { font-size: 11.5px; letter-spacing: 0.18em; }
   .fast-number { margin-bottom: 30px; }
   .fast-number span { font-size: 58px; }
@@ -549,8 +469,6 @@ body.is-booting .actions { opacity: 0; pointer-events: none; }
   .effort-keys { min-height: 56px; }
   .effort-key { height: 46px; }
   .effort-pad { display: none; }
-  .age-axis { bottom: 10px; }
-  .actions { bottom: max(58px, calc(50px + env(safe-area-inset-bottom))); }
 }
 
 @media (prefers-reduced-motion: reduce) {

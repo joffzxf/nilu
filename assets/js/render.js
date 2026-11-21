@@ -1,11 +1,12 @@
 import {
   SLOPE_CAP,
   heightAt,
-} from './life.js?v=2.2.0';
+} from './life.js?v=2.3.0';
 
 const AMBER = '227, 181, 102';
 const PAPER = '238, 232, 220';
 const RED = '200, 85, 61';
+const YEAR_SECONDS = 365.25 * 86400;
 
 function rgba(rgb, alpha) {
   return `rgba(${rgb}, ${alpha})`;
@@ -64,7 +65,7 @@ export class LifeRenderer {
   geometry() {
     const centerX = this.w * 0.5;
     const centerY = this.h * 0.5;
-    const left = this.w < 620 ? 22 : Math.max(this.w * 0.07, 46);
+    const left = this.w < 620 ? 18 : 24;
     const halfW = centerX - left;
     const halfH = Math.min(this.h * 0.32, 280);
     return { left, centerX, centerY, halfW, halfH };
@@ -133,6 +134,67 @@ export class LifeRenderer {
     ctx.restore();
   }
 
+  drawAgeAxis(g, age, baseY) {
+    const { ctx } = this;
+    const years = age / YEAR_SECONDS;
+    ctx.save();
+    ctx.lineCap = 'butt';
+
+    // 光点到轴的连接线：轴在“现在”的正下方
+    if (baseY > g.centerY + 2) {
+      ctx.strokeStyle = rgba(AMBER, 0.08);
+      ctx.beginPath();
+      ctx.moveTo(g.centerX, g.centerY);
+      ctx.lineTo(g.centerX, baseY);
+      ctx.stroke();
+    }
+
+    ctx.strokeStyle = rgba(PAPER, 0.17);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(g.left, baseY);
+    ctx.lineTo(g.centerX, baseY);
+    ctx.stroke();
+
+    // 起点固定在页面最左边；0 不写出来
+    ctx.strokeStyle = rgba(AMBER, 0.28);
+    ctx.beginPath();
+    ctx.moveTo(g.left, baseY - 2);
+    ctx.lineTo(g.left, baseY + 4);
+    ctx.stroke();
+
+    // 每一年一道刻痕。活得越久，刻痕越多、越挤。
+    const lastYear = Math.floor(years);
+    for (let year = 1; year <= lastYear; year += 1) {
+      const x = this.ageToX(year * YEAR_SECONDS, age, g.left, g.centerX);
+      if (x < g.left + 2 || x > g.centerX - 2) continue;
+      const tall = year % 5 === 0;
+      ctx.strokeStyle = rgba(AMBER, tall ? 0.28 : 0.14);
+      ctx.beginPath();
+      ctx.moveTo(x, baseY);
+      ctx.lineTo(x, baseY + (tall ? 6 : 3));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  drawAgeNumber(g, age, baseY, now) {
+    const { ctx } = this;
+    const years = Math.max(0, age / YEAR_SECONDS);
+    const death = this.deathAt ? Math.min(1, (now - this.deathAt) / 1700) : 0;
+    const alpha = (0.5 + 0.18 * Math.sin(now * 0.0032)) * (1 - death);
+    const bob = this.reduced ? 0 : Math.sin(now * 0.0032 + 1.2) * 1.2;
+    ctx.save();
+    ctx.font = '13px "Songti SC", "STSong", "Noto Serif CJK SC", "SimSun", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = rgba(AMBER, Math.max(0, alpha));
+    ctx.shadowColor = rgba(AMBER, 0.25 * (1 - death));
+    ctx.shadowBlur = 10;
+    ctx.fillText(years.toFixed(1), g.centerX, baseY + 16 + bob);
+    ctx.restore();
+  }
+
   drawCurve(life, events, now) {
     const { ctx } = this;
     const g = this.geometry();
@@ -144,19 +206,10 @@ export class LifeRenderer {
     this.drawTicks(g, age);
 
     if (age <= 0 || H <= 0) {
-      // 一条平线也是轨迹
-      if (age > 0) {
-        ctx.save();
-        ctx.strokeStyle = rgba(PAPER, 0.1);
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(g.left, g.centerY);
-        ctx.lineTo(g.centerX, g.centerY);
-        ctx.stroke();
-        ctx.restore();
-      }
+      this.drawAgeAxis(g, age, baseY);
       this.drawSparks(now);
       this.drawDot(g, life, now, 1);
+      this.drawAgeNumber(g, age, baseY, now);
       return;
     }
 
@@ -191,13 +244,7 @@ export class LifeRenderer {
     ctx.fillStyle = rgba(AMBER, 0.028);
     ctx.fill();
 
-    // 面积的底边：很淡，但让它真的“被围起来”
-    ctx.strokeStyle = rgba(AMBER, 0.09);
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, baseY);
-    ctx.lineTo(points[points.length - 1].x, baseY);
-    ctx.stroke();
+    this.drawAgeAxis(g, age, baseY);
 
     const stroke = ctx.createLinearGradient(g.left, 0, g.centerX, 0);
     stroke.addColorStop(0, rgba(AMBER, 0.06));
@@ -244,6 +291,7 @@ export class LifeRenderer {
 
     this.drawSparks(now);
     this.drawDot(g, life, now, 1);
+    this.drawAgeNumber(g, age, baseY, now);
   }
 
   drawDot(g, life, now, alpha = 1) {

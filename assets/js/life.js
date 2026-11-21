@@ -186,7 +186,7 @@ const plainInteger = new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 0 }
 export function formatArea(value) {
   const n = Number(value);
   if (!Number.isFinite(n) || n <= 0) return '0';
-  if (n < 1) return n.toFixed(4);
+  if (n < 1) return n.toFixed(n < 0.01 ? 6 : 4);
   if (n < 1000) return plainNumber.format(n);
   if (n < 1e16) return plainInteger.format(n);
   return n.toExponential(2).replace('e+', 'e');

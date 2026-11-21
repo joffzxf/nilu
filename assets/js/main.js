@@ -11,11 +11,11 @@ import {
   makeSequence,
   projectFastForward,
   settle,
-} from './life.js?v=2.0.0';
-import { LifeRenderer } from './render.js?v=2.0.0';
-import { Sound } from './audio.js?v=2.0.0';
-import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.0.0';
-import { CONFIG } from './config.js?v=2.0.0';
+} from './life.js?v=2.0.1';
+import { LifeRenderer } from './render.js?v=2.0.1';
+import { Sound } from './audio.js?v=2.0.1';
+import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.0.1';
+import { CONFIG } from './config.js?v=2.0.1';
 
 const $ = (id) => document.getElementById(id);
 const isGithubPages = window.location.hostname.endsWith('.github.io');

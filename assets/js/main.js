@@ -11,11 +11,11 @@ import {
   makeSequence,
   projectFastForward,
   settle,
-} from './life.js?v=2.0.2';
-import { LifeRenderer } from './render.js?v=2.0.2';
-import { Sound } from './audio.js?v=2.0.2';
-import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.0.2';
-import { CONFIG } from './config.js?v=2.0.2';
+} from './life.js?v=2.1.0';
+import { LifeRenderer } from './render.js?v=2.1.0';
+import { Sound } from './audio.js?v=2.1.0';
+import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.1.0';
+import { CONFIG } from './config.js?v=2.1.0';
 
 const $ = (id) => document.getElementById(id);
 const isGithubPages = window.location.hostname.endsWith('.github.io');
@@ -642,6 +642,16 @@ function renderEffortProgress() {
     node.classList.toggle('is-current', i === index);
   });
   el.effortProgress.style.width = `${(index / sequence.length) * 100}%`;
+  const current = el.effortKeys.children[index];
+  if (current) {
+    const container = el.effortKeys;
+    const top = current.offsetTop;
+    const bottom = top + current.offsetHeight;
+    if (top < container.scrollTop) container.scrollTop = Math.max(0, top - 8);
+    else if (bottom > container.scrollTop + container.clientHeight) {
+      container.scrollTop = bottom - container.clientHeight + 8;
+    }
+  }
 }
 
 function openEffortPanel(effort) {

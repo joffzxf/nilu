@@ -106,11 +106,11 @@ predicted = settle(snapshot, now - snapshot_received_at)
 
 ```text
 room = max(0, 1 - slope / 0.0012)
-gain = 0.0001 × room
+gain = 0.00003 × room
 slope += gain
 ```
 
-- 指令长度：`min(7, 2 + floor(efforts / 3))`。
+- 指令长度：`10 + efforts`，第一次 10 键，每成功一次加一键，不设上限。
 - 输错后必须重新点「努力」；旧的 effort 不能复用。
 
 ### 2.2 快进
@@ -222,14 +222,14 @@ efforts(
     "birthAt": 1795...,
     "age": 123.4,
     "day": 0.0014,
-    "slope": 0.0001,
+    "slope": 0.00003,
     "height": 0.01,
     "area": 1.2,
     "efforts": 1,
     "endReason": null,
-    "engineVersion": "2.0.0"
+    "engineVersion": "2.1.0"
   },
-  "events": [{ "type": "effort", "at": 10.2, "slope": 0.0001 }],
+  "events": [{ "type": "effort", "at": 10.2, "slope": 0.00003 }],
   "serverNow": 1795...
 }
 ```

@@ -99,7 +99,7 @@ test('离线的时间会补上；一次努力抬高斜率，面积继续增长',
   const start = await call('/api/account/efforts', { method: 'POST', token: session.token, body: {} });
   assert.equal(start.status, 200);
   assert.ok(Array.isArray(start.json.sequence));
-  assert.equal(start.json.sequence.length, 2);
+  assert.equal(start.json.sequence.length, 10);
 
   const complete = await call(`/api/account/efforts/${start.json.effortId}/complete`, {
     method: 'POST',

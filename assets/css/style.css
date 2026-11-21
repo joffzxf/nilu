@@ -308,11 +308,27 @@ body.has-panel .account-menu {
 /* ---------- effort ---------- */
 
 .effort-panel { align-content: center; gap: 22px; }
-.effort-keys { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 82px; flex-wrap: nowrap; }
+.effort-keys {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: min(860px, 88vw);
+  max-height: min(42vh, 340px);
+  padding: 8px 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  flex-wrap: wrap;
+  align-content: center;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(227, 181, 102, 0.25) transparent;
+}
 
 .effort-key {
   width: clamp(44px, 5.4vw, 62px);
   height: clamp(52px, 6.2vw, 70px);
+  flex: 0 0 auto;
   display: grid;
   place-items: center;
   border: 1px solid rgba(238, 232, 220, 0.15);
@@ -441,7 +457,7 @@ body.is-booting .actions { opacity: 0; pointer-events: none; }
   .fast-number { margin-bottom: 30px; }
   .fast-number span { font-size: 58px; }
   .fast-range { width: 76vw; }
-  .effort-keys { gap: 7px; min-height: 62px; }
+  .effort-keys { gap: 7px; width: 86vw; max-height: 40vh; padding: 6px 2px; }
   .effort-key { width: 38px; height: 48px; font-size: 21px; }
   .effort-pad button { width: 52px; height: 48px; }
   .panel-actions { margin-top: 28px; gap: 20px; }

@@ -9,13 +9,12 @@
  * 前端永远只负责“显示到现在”，不负责“这一生值多少”。
  */
 
-export const LIFE_ENGINE_VERSION = '2.0.0';
+export const LIFE_ENGINE_VERSION = '2.1.0';
 export const DAY_SECONDS = 86400;
 export const LIFETIME_DAYS = 30000;
 export const LIFETIME_SECONDS = DAY_SECONDS * LIFETIME_DAYS;
 export const SLOPE_CAP = 0.0012;
-export const BASE_GAIN = 0.0001;
-export const MAX_SEQUENCE = 7;
+export const BASE_GAIN = 0.00003;
 export const ARROW_GLYPHS = ['←', '↑', '→', '↓'];
 export const KEY_TO_INDEX = {
   ArrowLeft: 0,
@@ -108,7 +107,7 @@ export function endLife(life, reason = 'manual') {
 }
 
 export function effortLength(efforts) {
-  return Math.min(MAX_SEQUENCE, 2 + Math.floor(Math.max(0, efforts) / 3));
+  return 10 + Math.max(0, Math.floor(Number(efforts) || 0));
 }
 
 function nextRandom(state) {

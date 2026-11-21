@@ -88,13 +88,15 @@ test('自然时间超过寿命也会结束', () => {
   assert.equal(life.day, 30000);
 });
 
-test('努力指令长度随次数增长，且可复现', () => {
-  assert.equal(effortLength(0), 2);
-  assert.equal(effortLength(20), 7);
+test('努力指令从 10 键开始，每次成功加一键，且可复现', () => {
+  assert.equal(effortLength(0), 10);
+  assert.equal(effortLength(1), 11);
+  assert.equal(effortLength(20), 30);
+  assert.equal(effortLength(500), 510);
   const a = makeSequence(123, 4, effortLength(4));
   const b = makeSequence(123, 4, effortLength(4));
   assert.deepEqual(a, b);
-  assert.equal(a.length, effortLength(4));
+  assert.equal(a.length, 14);
   assert.ok(a.every((key) => key >= 0 && key <= 3));
 });
 

@@ -11,14 +11,17 @@ import {
   makeSequence,
   projectFastForward,
   settle,
-} from './life.js?v=2.1.0';
-import { LifeRenderer } from './render.js?v=2.1.0';
-import { Sound } from './audio.js?v=2.1.0';
-import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.1.0';
-import { CONFIG } from './config.js?v=2.1.0';
+} from './life.js?v=2.2.0';
+import { LifeRenderer } from './render.js?v=2.2.0';
+import { Sound } from './audio.js?v=2.2.0';
+import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.2.0';
+import { CONFIG } from './config.js?v=2.2.0';
 
 const $ = (id) => document.getElementById(id);
 const isGithubPages = window.location.hostname.endsWith('.github.io');
+const MAX_AGE_YEARS = LIFETIME_DAYS / 365.25;
+const AGE_SECONDS_PER_YEAR = 365.25 * 86400;
+const AGE_TICKS = [0, 20, 40, 60, 80];
 
 const state = {
   mode: 'local',
@@ -46,6 +49,7 @@ const sound = new Sound();
 let renderer;
 let areaFlashTimer = 0;
 let lastAreaText = '';
+let lastAgeText = '';
 
 const el = {};
 
@@ -54,7 +58,7 @@ function cacheElements() {
     'stage', 'area', 'areaValue', 'accountBtn', 'accountAvatar', 'accountMenu', 'accountName',
     'logoutBtn', 'actions', 'fastPanel', 'fastDay', 'fastRange', 'fastWarning', 'fastCancel', 'fastConfirm',
     'effortPanel', 'effortKeys', 'effortProgress', 'effortPad', 'endPanel', 'endCancel',
-    'endConfirm', 'veil', 'live',
+    'endConfirm', 'veil', 'live', 'ageAxis', 'ageFill', 'ageMarker', 'ageTicks', 'ageReadout', 'ageYears',
   ];
   for (const id of ids) el[id] = $(id);
   el.actionButtons = [...el.actions.querySelectorAll('button[data-action]')];
@@ -106,6 +110,38 @@ function updateArea(life) {
   el.areaValue.textContent = text;
 }
 
+function initAgeAxis() {
+  el.ageAxis.setAttribute('aria-valuemax', MAX_AGE_YEARS.toFixed(1));
+  el.ageTicks.replaceChildren();
+  for (const year of AGE_TICKS) {
+    const tick = document.createElement('span');
+    tick.textContent = String(year);
+    tick.style.left = `${(year / MAX_AGE_YEARS) * 100}%`;
+    el.ageTicks.append(tick);
+  }
+}
+
+function updateAgeAxis(life) {
+  if (!life || !el.ageAxis) return;
+  const years = Math.max(0, life.age / AGE_SECONDS_PER_YEAR);
+  const pct = Math.max(0, Math.min(100, (years / MAX_AGE_YEARS) * 100));
+  el.ageFill.style.width = `${pct}%`;
+  el.ageMarker.style.left = `${pct}%`;
+  el.ageReadout.style.left = `${pct}%`;
+  el.ageReadout.style.transform = pct < 6
+    ? 'translateX(0)'
+    : pct > 94
+      ? 'translateX(-100%)'
+      : 'translateX(-50%)';
+  const text = years.toFixed(1);
+  if (text !== lastAgeText) {
+    lastAgeText = text;
+    el.ageYears.textContent = text;
+    el.ageAxis.setAttribute('aria-valuenow', text);
+    el.ageAxis.setAttribute('aria-valuetext', `${text} 岁`);
+  }
+}
+
 function showActions(show) {
   el.actions.hidden = !show;
 }
@@ -144,7 +180,10 @@ function frame(now) {
     return;
   }
   renderer.draw(life, state.events, now);
-  if (!state.fastOpen) updateArea(life);
+  if (!state.fastOpen) {
+    updateArea(life);
+    updateAgeAxis(life);
+  }
 }
 
 /* ---------------- base state ---------------- */
@@ -894,6 +933,8 @@ async function boot() {
     state.justDied = false;
   }
   renderer = new LifeRenderer(el.stage);
+  initAgeAxis();
+  updateAgeAxis(createLife({ bornAt: Date.now() }));
   bind();
   requestAnimationFrame(frame);
 

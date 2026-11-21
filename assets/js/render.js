@@ -1,7 +1,7 @@
 import {
   SLOPE_CAP,
   heightAt,
-} from './life.js?v=2.1.0';
+} from './life.js?v=2.2.0';
 
 const AMBER = '227, 181, 102';
 const PAPER = '238, 232, 220';
@@ -178,9 +178,9 @@ export class LifeRenderer {
 
     ctx.save();
     const fill = ctx.createLinearGradient(0, g.centerY - amp, 0, baseY);
-    fill.addColorStop(0, rgba(AMBER, 0.2));
-    fill.addColorStop(0.55, rgba(AMBER, 0.07));
-    fill.addColorStop(1, rgba(AMBER, 0));
+    fill.addColorStop(0, rgba(AMBER, 0.26));
+    fill.addColorStop(0.55, rgba(AMBER, 0.11));
+    fill.addColorStop(1, rgba(AMBER, 0.025));
     ctx.beginPath();
     ctx.moveTo(points[0].x, baseY);
     for (const p of points) ctx.lineTo(p.x, p.y);
@@ -188,6 +188,16 @@ export class LifeRenderer {
     ctx.closePath();
     ctx.fillStyle = fill;
     ctx.fill();
+    ctx.fillStyle = rgba(AMBER, 0.028);
+    ctx.fill();
+
+    // 面积的底边：很淡，但让它真的“被围起来”
+    ctx.strokeStyle = rgba(AMBER, 0.09);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, baseY);
+    ctx.lineTo(points[points.length - 1].x, baseY);
+    ctx.stroke();
 
     const stroke = ctx.createLinearGradient(g.left, 0, g.centerX, 0);
     stroke.addColorStop(0, rgba(AMBER, 0.06));

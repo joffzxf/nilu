@@ -11,14 +11,19 @@ import {
   makeSequence,
   projectFastForward,
   settle,
-} from './life.js?v=2.3.0';
-import { LifeRenderer } from './render.js?v=2.3.0';
-import { Sound } from './audio.js?v=2.3.0';
-import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.3.0';
-import { CONFIG } from './config.js?v=2.3.0';
+} from './life.js?v=2.4.0';
+import { LifeRenderer } from './render.js?v=2.4.0';
+import { Sound } from './audio.js?v=2.4.0';
+import { ApiClient, ApiError, makeNonce, randomSeed } from './api.js?v=2.4.0';
+import { CONFIG } from './config.js?v=2.4.0';
 
 const $ = (id) => document.getElementById(id);
 const isGithubPages = window.location.hostname.endsWith('.github.io');
+const isLocalHost = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(window.location.hostname)
+  || window.location.hostname.startsWith('192.168.')
+  || window.location.hostname.startsWith('10.')
+  || /^172\.(1[6-9]|2\d|3[01])\./.test(window.location.hostname);
+const isTest = isLocalHost && new URLSearchParams(window.location.search).get('test') === '1';
 
 const state = {
   mode: 'local',
@@ -46,6 +51,8 @@ const sound = new Sound();
 let renderer;
 let areaFlashTimer = 0;
 let lastAreaText = '';
+let testHud = null;
+let testHudAt = 0;
 
 const el = {};
 
@@ -106,6 +113,58 @@ function updateArea(life) {
   el.areaValue.textContent = text;
 }
 
+function mountTestHud() {
+  if (!isTest || testHud) return;
+  testHud = document.createElement('aside');
+  testHud.className = 'test-hud';
+  testHud.setAttribute('aria-label', '测试信息');
+
+  const title = document.createElement('div');
+  title.className = 'test-hud-title';
+  title.textContent = 'TEST · 本机';
+  const values = document.createElement('pre');
+  values.id = 'testValues';
+  values.textContent = 'booting…';
+  const reset = document.createElement('button');
+  reset.type = 'button';
+  reset.textContent = '清空本机';
+  reset.addEventListener('click', () => {
+    try {
+      localStorage.removeItem('nilu.life');
+      localStorage.removeItem('nilu.token');
+      sessionStorage.clear();
+    } catch {
+      /* ignore */
+    }
+    window.location.reload();
+  });
+
+  testHud.append(title, values, reset);
+  document.body.append(testHud);
+  document.body.classList.add('is-test');
+  el.testValues = values;
+}
+
+function updateTestHud(life) {
+  if (!testHud || !life) return;
+  const now = performance.now();
+  if (now - testHudAt < 220) return;
+  testHudAt = now;
+  const ageYears = life.age / (365.25 * 86400);
+  el.testValues.textContent = [
+    `mode    ${state.mode}${state.online ? ' / online' : ''}`,
+    `engine  ${LIFE_ENGINE_VERSION}`,
+    `age     ${ageYears.toFixed(2)} y`,
+    `day     ${formatDay(life.day)}`,
+    `slope   ${life.slope.toFixed(6)}`,
+    `height  ${life.height.toFixed(3)}`,
+    `area    ${formatArea(life.area)}`,
+    `efforts ${life.efforts}`,
+    `status  ${state.died ? 'dead' : life.status}`,
+    `id      ${life.id || 'local'}`,
+  ].join('\n');
+}
+
 function showActions(show) {
   el.actions.hidden = !show;
 }
@@ -132,6 +191,7 @@ function frame(now) {
   requestAnimationFrame(frame);
   if (state.died) {
     renderer.draw(state.baseLife, state.events, now);
+    updateTestHud(state.baseLife);
     return;
   }
   const life = predictLife();
@@ -144,6 +204,7 @@ function frame(now) {
     return;
   }
   renderer.draw(life, state.events, now);
+  updateTestHud(life);
   if (!state.fastOpen) updateArea(life);
 }
 
@@ -894,6 +955,7 @@ async function boot() {
     state.justDied = false;
   }
   renderer = new LifeRenderer(el.stage);
+  mountTestHud();
   bind();
   requestAnimationFrame(frame);
 

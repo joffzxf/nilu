@@ -443,6 +443,61 @@ body.is-booting .actions { opacity: 0; pointer-events: none; }
 
 /* ---------- responsive ---------- */
 
+/* ---------- local test HUD ---------- */
+
+.test-hud {
+  position: fixed;
+  top: 64px;
+  left: 16px;
+  z-index: 9;
+  width: 238px;
+  padding: 11px 13px 10px;
+  border: 1px solid rgba(227, 181, 102, 0.18);
+  border-radius: 3px;
+  background: rgba(7, 8, 10, 0.74);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  color: rgba(238, 232, 220, 0.52);
+  font-family: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  line-height: 1.6;
+  letter-spacing: 0.02em;
+  pointer-events: auto;
+}
+
+.test-hud-title {
+  margin-bottom: 7px;
+  color: rgba(227, 181, 102, 0.75);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+}
+
+.test-hud pre {
+  margin: 0;
+  white-space: pre-wrap;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.test-hud button {
+  margin-top: 8px;
+  padding: 3px 0;
+  border: 0;
+  border-bottom: 1px solid rgba(227, 181, 102, 0.3);
+  background: transparent;
+  color: rgba(227, 181, 102, 0.65);
+  font-family: var(--serif);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+}
+
+.test-hud button:hover { color: var(--amber-soft); }
+
+@media (max-width: 640px) {
+  .test-hud { top: 54px; left: 12px; width: 206px; padding: 9px 10px 8px; font-size: 8px; }
+}
+
 @media (pointer: coarse) {
   .effort-pad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
   .actions { bottom: max(24px, calc(16px + env(safe-area-inset-bottom))); }

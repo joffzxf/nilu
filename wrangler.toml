@@ -1,0 +1,24 @@
+name = "nilu-api"
+main = "server/worker.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[observability]
+enabled = true
+
+[vars]
+APP_ORIGIN = "https://joffzxf.github.io"
+API_ORIGIN = "https://nilu-api.example.workers.dev"
+DEV_AUTH = "0"
+
+# 部署前：
+#   npx wrangler d1 create nilu
+# 把返回的 database_id 填进来，然后：
+#   npx wrangler d1 execute nilu --file server/schema.sql --remote
+#   npx wrangler secret put GITHUB_CLIENT_ID
+#   npx wrangler secret put GITHUB_CLIENT_SECRET
+#   npx wrangler deploy
+[[d1_databases]]
+binding = "DB"
+database_name = "nilu"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"

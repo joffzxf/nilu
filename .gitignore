@@ -1,0 +1,16 @@
+# local data & secrets
+data/
+.env
+node_modules/
+.wrangler/
+.tmp*
+.shots/
+
+# logs
+*.log
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
